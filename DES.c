@@ -14,9 +14,6 @@ DES *DES_create()
     if (des)
     {
         des->key = NULL;
-        des->keySize = 0;
-        des->iv = NULL;
-        des->ivSize = 0;
     }
     return des;
 }
@@ -26,212 +23,247 @@ void DES_destroy(DES *des)
 {
     if (des)
     {
-        if (des->key)
-            free(des->key);
-        if (des->iv)
-            free(des->iv);
+        if (des->subKeys)
+        {
+            free(des->subKeys);
+        }
         free(des);
     }
 }
 
-// 设置密钥
-void DES_setKey(DES *des, const BYTE *key, size_t keySize)
+void DES_init(DES *des, BYTE key)
 {
-    if (des->key)
-        free(des->key);
-
-    des->key = (BYTE *)malloc(keySize * sizeof(BYTE));
-    if (des->key)
+    des->key = key;
+    des->subKeys = generate_subkeys(key);
+    if (!des->subKeys)
     {
-        memcpy(des->key, key, keySize * sizeof(BYTE));
-        des->keySize = keySize;
+        printf("Failed to generate subkeys.\n");
+        return;
     }
+}
 
-    // 生成子密钥 (这里应该调用子密钥生成函数)
-    // generateSubkeys(des->key, subkeys);
+// 设置密钥
+void DES_setKey(DES *des, BYTE *key, size_t keySize)
+{
+    if (des && key && keySize == 1)
+    { // 期望密钥大小为1个BYTE (64位)
+        des->key = *key;
+        // 生成子密钥
+        des->subKeys = generate_subkeys(des->key);
+    }
 }
 
 // 设置初始化向量
-void DES_setIV(DES *des, const BYTE *iv, size_t ivSize)
+void DES_setIV(DES *des, BYTE *iv, size_t ivSize)
 {
-    if (des->iv)
-        free(des->iv);
-
-    des->iv = (BYTE *)malloc(ivSize * sizeof(BYTE));
-    if (des->iv)
-    {
-        memcpy(des->iv, iv, ivSize * sizeof(BYTE));
-        des->ivSize = ivSize;
+    if (des && iv && ivSize == 1)
+    { // 期望IV大小为1个BYTE (64位)
+        des->iv = *iv;
     }
 }
 
-// 加密函数
-BYTE *DES_encrypt(DES *des, const BYTE *plaintext, size_t plaintextSize,
-                  EncryptionMode mode, size_t *ciphertextSize)
+BYTE DES_encryptBlock(DES *des, BYTE block)
 {
-    // 添加填充
-    BYTE *paddedPlaintext = (BYTE *)malloc(plaintextSize * sizeof(BYTE));
-    size_t paddedSize = plaintextSize;
-    if (paddedPlaintext)
+    // 初始置换
+    block = IP_transform(block);
+
+    // 分为左右两部分
+    BYTE left = (block >> 32) & 0xFFFFFFFF;
+    BYTE right = block & 0xFFFFFFFF;
+
+    // 16轮迭代
+    for (int i = 0; i < 16; i++)
     {
-        memcpy(paddedPlaintext, plaintext, plaintextSize * sizeof(BYTE));
-        padding(&paddedPlaintext, &paddedSize);
+        // 扩展右半部分
+        BYTE expandedRight = E_expansion(right);
+        // 与子密钥异或
+        expandedRight ^= des->subKeys[i];
+        // S-盒变换
+        BYTE sboxOutput = S_box(expandedRight);
+        // P-置换
+        BYTE pOutput = P_permutation(sboxOutput);
+        // 左右交换并异或
+        BYTE temp = left;
+        left = right;
+        right ^= pOutput;
     }
-    else
+
+    // 合并左右部分
+    block = ((BYTE)left << 32) | right;
+
+    // 逆初始置换
+    block = IP_inv_transform(block);
+
+    return block;
+}
+
+BYTE DES_decryptBlock(DES *des, BYTE block)
+{
+    // 初始置换
+    block = IP_transform(block);
+
+    // 分为左右两部分
+    BYTE left = (block >> 32) & 0xFFFFFFFF;
+    BYTE right = block & 0xFFFFFFFF;
+
+    // 16轮迭代（子密钥顺序反转）
+    for (int i = 15; i >= 0; i--)
+    {
+        // 扩展右半部分
+        BYTE expandedRight = E_expansion(right);
+        // 与子密钥异或
+        expandedRight ^= des->subKeys[i];
+        // S-盒变换
+        BYTE sboxOutput = S_box(expandedRight);
+        // P-置换
+        BYTE pOutput = P_permutation(sboxOutput);
+        // 左右交换并异或
+        BYTE temp = left;
+        left = right;
+        right ^= pOutput;
+    }
+
+    // 合并左右部分
+    block = ((BYTE)left << 32) | right;
+
+    // 逆初始置换
+    block = IP_inv_transform(block);
+
+    return block;
+}
+
+BYTE *generate_subkeys(BYTE key)
+{
+    BYTE *subkeys = (BYTE *)malloc(16 * sizeof(BYTE));
+    if (!subkeys)
     {
         return NULL;
     }
 
-    // 分配密文空间
-    *ciphertextSize = paddedSize;
-    BYTE *ciphertext = (BYTE *)malloc(*ciphertextSize * sizeof(BYTE));
-    if (!ciphertext)
+    // 提取56位有效密钥（去除奇偶校验位）
+    BYTE key_ = 0;
+    int destBit = 0; // 目标位置
+    for (int i = 0; i < 64; i++)
     {
-        free(paddedPlaintext);
-        return NULL;
-    }
-
-    // 根据不同模式实现加密
-    switch (mode)
-    {
-    case ECB:
-        // ECB模式加密
-        // 待实现
-        break;
-    case CBC:
-        // CBC模式加密
-        // 待实现
-        break;
-    case CFB:
-        // CFB模式加密
-        // 待实现
-        break;
-    case OFB:
-        // OFB模式加密
-        // 待实现
-        break;
-    }
-
-    free(paddedPlaintext);
-    return ciphertext;
-}
-
-// 解密函数
-BYTE *DES_decrypt(DES *des, const BYTE *ciphertext, size_t ciphertextSize,
-                  EncryptionMode mode, size_t *plaintextSize)
-{
-    // 分配明文空间
-    *plaintextSize = ciphertextSize;
-    BYTE *plaintext = (BYTE *)malloc(*plaintextSize * sizeof(BYTE));
-    if (!plaintext)
-    {
-        return NULL;
-    }
-
-    // 根据不同模式实现解密
-    switch (mode)
-    {
-    case ECB:
-        // ECB模式解密
-        // 待实现
-        break;
-    case CBC:
-        // CBC模式解密
-        // 待实现
-        break;
-    case CFB:
-        // CFB模式解密
-        // 待实现
-        break;
-    case OFB:
-        // OFB模式解密
-        // 待实现
-        break;
-    }
-
-    // 去除填充
-    unpadding(&plaintext, plaintextSize);
-
-    return plaintext;
-}
-
-// 生成子密钥
-void generateSubkeys(const BYTE *key, BYTE **subkeys)
-{
-    // 实现子密钥生成
-    // 待实现
-}
-
-// 加密单个块
-void encryptBlock(BYTE *block, const BYTE **subkeys)
-{
-    // 实现DES块加密
-    // 待实现
-}
-
-// 解密单个块
-void decryptBlock(BYTE *block, const BYTE **subkeys)
-{
-    // 实现DES块解密
-    // 待实现
-}
-
-// 两个块进行异或操作
-void xorBlocks(BYTE *block1, const BYTE *block2, size_t size)
-{
-    for (size_t i = 0; i < size; i++)
-    {
-        block1[i] ^= block2[i];
-    }
-}
-
-// 填充函数（PKCS#7）- 修改为处理64位块
-void padding(BYTE **data, size_t *dataSize)
-{
-    size_t originalSize = *dataSize;
-    size_t paddingSize = BLOCK_SIZE - (originalSize % BLOCK_SIZE);
-    if (paddingSize == 0)
-    {
-        paddingSize = BLOCK_SIZE;
-    }
-
-    size_t newSize = originalSize + paddingSize;
-    BYTE *newData = (BYTE *)realloc(*data, newSize * sizeof(BYTE));
-    if (newData)
-    {
-        // 添加PKCS#7填充
-        for (size_t i = originalSize; i < newSize; i++)
+        if (i % 8 != 7)
         {
-            newData[i] = (BYTE)paddingSize;
+            int bitValue = (key >> i) & 1;
+            key_ |= ((BYTE)bitValue << destBit);
+            destBit++;
         }
-        *data = newData;
-        *dataSize = newSize;
     }
-}
 
-// 去除填充
-void unpadding(BYTE **data, size_t *dataSize)
-{
-    if (*dataSize == 0)
-        return;
-
-    size_t size = *dataSize;
-    BYTE paddingValue = (*data)[size - 1];
-
-    // 验证填充
-    if (paddingValue <= BLOCK_SIZE)
+    BYTE keyPC1 = 0;
+    for (int i = 0; i < 56; i++)
     {
-        for (size_t i = size - paddingValue; i < size; i++)
+        int bitPosition = PC1[i] - 1; // PC1表从1开始
+        int bitValue = (key_ >> bitPosition) & 1;
+        keyPC1 |= (bitValue << i);
+    }
+    // C0和D0
+    BYTE C0 = 0;
+    BYTE D0 = 0;
+    for (int i = 0; i < 28; i++)
+    {
+        int bitValue = (keyPC1 >> i) & 1;
+        C0 |= (bitValue << i);
+        bitValue = (keyPC1 >> (i + 28)) & 1;
+        D0 |= (bitValue << i);
+    }
+
+    for (int i = 0; i < 16; i++)
+    {
+        // 从LS表获取左移位数再左移
+        int shift = SHIFTS[i];
+        C0 = ((C0 << shift) | (C0 >> (28 - shift))) & 0xFFFFFFF; // 左移并循环
+        D0 = ((D0 << shift) | (D0 >> (28 - shift))) & 0xFFFFFFF; // 左移并循环
+
+        // PC2置换 subkey = PC2(CiDi)
+        BYTE subkey = 0;
+        for (int j = 0; j < 48; j++)
         {
-            if ((*data)[i] != paddingValue)
+            int bitPosition = PC2[j] - 1; // PC2表从1开始
+            int bitValue;
+            if (bitPosition < 28)
             {
-                return; // 无效填充
+                bitValue = (C0 >> bitPosition) & 1;
             }
+            else
+            {
+                bitValue = (D0 >> (bitPosition - 28)) & 1;
+            }
+            subkey |= (bitValue << j);
         }
-
-        // 去除填充
-        *dataSize = size - paddingValue;
-        // 可选：调整内存大小
-        // *data = (BYTE*)realloc(*data, *dataSize * sizeof(BYTE));
+        subkeys[i] = subkey;
     }
+
+    return subkeys;
+}
+
+BYTE IP_transform(const BYTE block)
+{
+    // 输入为64位, 输出为64位
+    BYTE output = 0;
+    for (int i = 0; i < 64; i++)
+    {
+        int bitPosition = IP[i] - 1; // IP表从1开始
+        int bitValue = (block >> bitPosition) & 1;
+        output |= (bitValue << i);
+    }
+    return output;
+}
+
+BYTE IP_inv_transform(const BYTE block)
+{
+    // 输入为64位, 输出为64位
+    BYTE output = 0;
+    for (int i = 0; i < 64; i++)
+    {
+        int bitPosition = IP_INV[i] - 1; // IP^-1表从1开始
+        int bitValue = (block >> bitPosition) & 1;
+        output |= (bitValue << i);
+    }
+    return output;
+}
+
+BYTE E_expansion(const BYTE block)
+{
+    // 输入为32位, 输出为48位
+    BYTE output = 0;
+    for (int i = 0; i < 48; i++)
+    {
+        // E扩展运算
+        int bitPosition = E[i] - 1; // E表从1开始
+        int bitValue = (block >> bitPosition) & 1;
+        output |= (bitValue << i);
+    }
+    return output;
+}
+
+BYTE S_box(const BYTE block)
+{
+    // 输入为48位, 输出为32位
+    BYTE output = 0;
+    for (int i = 0; i < 8; i++)
+    {
+        // S-盒运算
+        int row = ((block >> (i * 6 + 5)) & 1) | (((block >> (i * 6)) & 1) << 1);
+        int col = (block >> (i * 6 + 1)) & 0x0F;
+        int sboxValue = S_BOXES[i][row][col];
+        output |= (sboxValue << (i * 4));
+    }
+    return output;
+}
+
+BYTE P_permutation(const BYTE block)
+{
+    // 输入为32位, 输出为32位
+    BYTE output = 0;
+    for (int i = 0; i < 32; i++)
+    {
+        int bitPosition = P[i] - 1; // P表从1开始
+        int bitValue = (block >> bitPosition) & 1;
+        output |= (bitValue << i);
+    }
+    return output;
 }

@@ -6,16 +6,15 @@
 #include <string.h>
 #include "enum.h"
 
-// 定义字节类型 - 改为使用64位无符号长整型处理DES块
+// 64位BYTE类型定义
 typedef unsigned long long BYTE;
 
 // DES结构体定义
 typedef struct
 {
-    BYTE *key;      // 密钥
-    size_t keySize; // 密钥大小 (以BYTE单位计)
-    BYTE *iv;       // 初始化向量
-    size_t ivSize;  // 初始化向量大小 (以BYTE单位计)
+    BYTE key;      // 密钥
+    BYTE *subKeys; // 子密钥
+    BYTE iv;       // 初始化向量
 } DES;
 
 // 创建和销毁DES实例
@@ -23,21 +22,27 @@ DES *DES_create();
 void DES_destroy(DES *des);
 
 // 设置密钥和初始化向量
-void DES_setKey(DES *des, const BYTE *key, size_t keySize);
-void DES_setIV(DES *des, const BYTE *iv, size_t ivSize);
+void DES_setKey(DES *des, BYTE *key, size_t keySize);
+void DES_setIV(DES *des, BYTE *iv, size_t ivSize);
+
+void DES_init(DES *des, BYTE key);
 
 // 加密和解密函数
-BYTE *DES_encrypt(DES *des, const BYTE *plaintext, size_t plaintextSize,
-                  EncryptionMode mode, size_t *ciphertextSize);
-BYTE *DES_decrypt(DES *des, const BYTE *ciphertext, size_t ciphertextSize,
-                  EncryptionMode mode, size_t *plaintextSize);
+BYTE DES_encryptBlock(DES *des, BYTE block);
+BYTE DES_decryptBlock(DES *des, BYTE block);
 
-// 辅助函数
-void generateSubkeys(const BYTE *key, BYTE **subkeys);
-void encryptBlock(BYTE *block, const BYTE **subkeys);
-void decryptBlock(BYTE *block, const BYTE **subkeys);
-void xorBlocks(BYTE *block1, const BYTE *block2, size_t size);
-void padding(BYTE **data, size_t *dataSize);
-void unpadding(BYTE **data, size_t *dataSize);
+// 生成子密钥
+BYTE *generate_subkeys(const BYTE key);
+
+// IP置换函数
+BYTE IP_transform(const BYTE block);
+// IP^-1置换函数
+BYTE IP_inv_transform(const BYTE block);
+// E-扩展运算
+BYTE E_expansion(const BYTE block);
+// S-盒运算
+BYTE S_box(const BYTE block);
+// P-置换
+BYTE P_permutation(const BYTE block);
 
 #endif
