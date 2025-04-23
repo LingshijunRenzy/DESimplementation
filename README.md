@@ -49,7 +49,7 @@ e1des -p <文件> -k <文件> [-v <文件>] -m <模式> [-d] -c <输出>
 ## 构建与测试
 ### WIN32 平台
 1. 需要安装 **MinGW** 或 **Cygwin**，并确保 `gcc` 命令可用。
-2. 前往https://ftp.gnu.org/gnu/make/下载最新版本 `make` 工具，解压到本地
+2. 前往https://ftp.gnu.org/gnu/make/ 下载最新版本 `make` 工具，解压到本地
 3. 在确保`gcc`已经配置好的前提下，在`make`工具目录下打开命令行，执行以下命令：
    ```bash
    build_w32.bat gcc
