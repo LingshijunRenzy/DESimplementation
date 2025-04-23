@@ -47,11 +47,49 @@ e1des -p <文件> -k <文件> [-v <文件>] -m <模式> [-d] -c <输出>
 - `-c <cipherfile>`: 输出文件路径  
 
 ## 构建与测试
-1. 编译项目：
+### WIN32 平台
+1. 需要安装 **MinGW** 或 **Cygwin**，并确保 `gcc` 命令可用。
+2. 前往https://ftp.gnu.org/gnu/make/下载最新版本 `make` 工具，解压到本地
+3. 在确保`gcc`已经配置好的前提下，在`make`工具目录下打开命令行，执行以下命令：
+   ```bash
+   build_w32.bat gcc
+   ```
+   该命令会自动编译项目并生成，到这里已经编译了make的二进制 文件了，文件名为gnumake.exe，位于当前目录下的GccRel文件夹。
+   然后再到环境变量，添加刚刚的GccRel文件夹。
+   以上步骤完成后，运行`gnumake -v`，如果显示版本号，则说明安装成功。
+4. 进入项目目录，执行以下命令编译项目：
+   ```bash
+   gnumake
+   ```
+5. 快速功能测试：
+   ```bash
+   gnumake test-ecb      # 测试 ECB 加密
+   gnumake test-cbc      # 测试 CBC 加密
+   gnumake test-cfb      # 测试 CFB-8 加密
+   gnumake test-ofb      # 测试 OFB-8 加密
+   gnumake test-dec-ecb  # 测试 ECB 解密
+   gnumake test-dec-cbc  # 测试 CBC 解密
+   gnumake test-dec-cfb  # 测试 CFB-8 解密
+   gnumake test-dec-ofb  # 测试 OFB-8 解密
+6. 性能测试 (Python 脚本)：
+   ```bash
+   cd txts/speedtest
+   chmod +x data_generator.py
+   chmod +x speed_test.py
+   ./data_generator.py
+   ```
+   生成 5 MB 随机数据文件 `randomdata.txt`，用于性能测试。  
+   ```bash
+   ./speed_test.py
+   ```
+   执行后会生成 `test_report_YYYY-MM-DD-HH-MM-SS.log`，记录 20 次加/解密的总耗时和吞吐率。
+
+### Linux与MacOS 平台
+6. 编译项目：
    ```bash
    make
    ```
-2. 快速功能测试：
+7. 快速功能测试：
    ```bash
    make test-ecb      # 测试 ECB 加密
    make test-cbc      # 测试 CBC 加密
@@ -62,7 +100,7 @@ e1des -p <文件> -k <文件> [-v <文件>] -m <模式> [-d] -c <输出>
    make test-dec-cfb  # 测试 CFB-8 解密
    make test-dec-ofb  # 测试 OFB-8 解密
    ```
-3. 性能测试 (Python 脚本)：
+8. 性能测试 (Python 脚本)：
    ```bash
    cd txts/speedtest
    chmod +x data_generator.py

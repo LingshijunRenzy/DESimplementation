@@ -1,7 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include "getopt.h" // 从第三方源码拷贝到项目
+#else
 #include <getopt.h>
+#endif
 #include <stdbool.h>
 #include "DES.h"
 #include "enum.h"
@@ -58,7 +62,7 @@ int main(int argc, char *argv[])
     // 检查必要参数
     if (plainFilePath == NULL || keyFilePath == NULL || modeName == NULL || cipherFilePath == NULL)
     {
-        fprintf(stderr, "错误: 缺少必要参数\n");
+        fprintf(stderr, "Error: Missing required arguments\n");
         printUsage();
         return 1;
     }
@@ -69,7 +73,7 @@ int main(int argc, char *argv[])
     // 如果是CBC、CFB或OFB模式，需要初始化向量
     if ((mode == CBC || mode == CFB || mode == OFB) && ivFilePath == NULL)
     {
-        fprintf(stderr, "错误: CBC、CFB和OFB模式需要指定初始化向量文件\n");
+        fprintf(stderr, "Error: CBC, CFB and OFB modes require an IV file\n");
         return 1;
     }
 
@@ -82,7 +86,7 @@ int main(int argc, char *argv[])
     plaintext = readHexFile(plainFilePath, &plaintextSize);
     if (!plaintext)
     {
-        fprintf(stderr, "错误: 无法读取明文文件\n");
+        fprintf(stderr, "Error: Unable to read plaintext file\n");
         return 1;
     }
 
@@ -90,7 +94,7 @@ int main(int argc, char *argv[])
     key = readHexFile(keyFilePath, &keySize);
     if (!key)
     {
-        fprintf(stderr, "错误: 无法读取密钥文件\n");
+        fprintf(stderr, "Error: Unable to read key file\n");
         free(plaintext);
         return 1;
     }
@@ -98,7 +102,7 @@ int main(int argc, char *argv[])
     // 验证密钥大小
     if (keySize != KEY_SIZE)
     {
-        fprintf(stderr, "错误: 密钥必须为16个十六进制字符(64位)\n");
+        fprintf(stderr, "Error: Key must be 16 hexadecimal characters (64 bits)\n");
         free(plaintext);
         free(key);
         return 1;
@@ -110,7 +114,7 @@ int main(int argc, char *argv[])
         iv = readHexFile(ivFilePath, &ivSize);
         if (!iv)
         {
-            fprintf(stderr, "错误: 无法读取初始化向量文件\n");
+            fprintf(stderr, "Error: Unable to read IV file\n");
             free(plaintext);
             free(key);
             return 1;
@@ -118,7 +122,7 @@ int main(int argc, char *argv[])
 
         if (ivSize != IV_SIZE)
         {
-            fprintf(stderr, "错误: 初始化向量必须为16个十六进制字符(64位)\n");
+            fprintf(stderr, "Error: IV must be 16 hexadecimal characters (64 bits)\n");
             free(plaintext);
             free(key);
             free(iv);
@@ -130,7 +134,7 @@ int main(int argc, char *argv[])
     DES *des = DES_create();
     if (!des)
     {
-        fprintf(stderr, "错误: 无法创建DES实例\n");
+        fprintf(stderr, "Error: Unable to create DES instance\n");
         free(plaintext);
         free(key);
         if (iv)
@@ -156,19 +160,19 @@ int main(int argc, char *argv[])
             unsigned char *ct8 = readHexFile8(plainFilePath, &ctSize8);
             if (!ct8)
             {
-                fprintf(stderr, "错误: 无法读取密文文件\n");
+                fprintf(stderr, "Error: Unable to read ciphertext file\n");
                 return 1;
             }
             size_t ptSize8;
             unsigned char *pt8 = CFB8_decrypt(des, ct8, ctSize8, iv[0], &ptSize8);
             if (pt8 && writeHexByteFile(cipherFilePath, pt8, ptSize8))
             {
-                printf("解密完成，明文已写入: %s\n", cipherFilePath);
+                printf("Decryption complete, plaintext written to: %s\n", cipherFilePath);
                 ret = 0;
             }
             else
             {
-                fprintf(stderr, "错误: CFB8 解密失败\n");
+                fprintf(stderr, "Error: CFB8 decryption failed\n");
             }
             free(ct8);
             free(pt8);
@@ -186,19 +190,19 @@ int main(int argc, char *argv[])
             unsigned char *ct8 = readHexFile8(plainFilePath, &ctSize8);
             if (!ct8)
             {
-                fprintf(stderr, "错误: 无法读取密文文件\n");
+                fprintf(stderr, "Error: Unable to read ciphertext file\n");
                 return 1;
             }
             size_t ptSize8;
             unsigned char *pt8 = OFB8_decrypt(des, ct8, ctSize8, iv[0], &ptSize8);
             if (pt8 && writeHexByteFile(cipherFilePath, pt8, ptSize8))
             {
-                printf("解密完成，明文已写入: %s\n", cipherFilePath);
+                printf("Decryption complete, plaintext written to: %s\n", cipherFilePath);
                 ret = 0;
             }
             else
             {
-                fprintf(stderr, "错误: OFB8 解密失败\n");
+                fprintf(stderr, "Error: OFB8 decryption failed\n");
             }
             free(ct8);
             free(pt8);
@@ -214,12 +218,12 @@ int main(int argc, char *argv[])
         BYTE *plainOut = DES_decrypt(des, plaintext, plaintextSize, mode, &plainOutSize);
         if (plainOut && writeHexFile(cipherFilePath, plainOut, plainOutSize))
         {
-            printf("解密完成，明文已写入: %s\n", cipherFilePath);
+            printf("Decryption complete, plaintext written to: %s\n", cipherFilePath);
             ret = 0;
         }
         else
         {
-            fprintf(stderr, "错误: 解密失败\n");
+            fprintf(stderr, "Error: Decryption failed\n");
         }
         free(plainOut);
         DES_destroy(des);
@@ -237,19 +241,19 @@ int main(int argc, char *argv[])
         unsigned char *pt8 = readHexFile8(plainFilePath, &ptSize8);
         if (!pt8)
         {
-            fprintf(stderr, "错误: 读取明文失败\n");
+            fprintf(stderr, "Error: Failed to read plaintext\n");
             return 1;
         }
         size_t ctSize8;
         unsigned char *ct8 = CFB8_encrypt(des, pt8, ptSize8, iv[0], &ctSize8);
         if (ct8 && writeHexByteFile(cipherFilePath, ct8, ctSize8))
         {
-            printf("加密完成，密文已写入: %s\n", cipherFilePath);
+            printf("Encryption complete, ciphertext written to: %s\n", cipherFilePath);
             ret = 0;
         }
         else
         {
-            fprintf(stderr, "错误: CFB8 加密失败\n");
+            fprintf(stderr, "Error: CFB8 encryption failed\n");
         }
         free(pt8);
         free(ct8);
@@ -266,19 +270,19 @@ int main(int argc, char *argv[])
         unsigned char *pt8 = readHexFile8(plainFilePath, &ptSize8);
         if (!pt8)
         {
-            fprintf(stderr, "错误: 读取明文失败\n");
+            fprintf(stderr, "Error: Failed to read plaintext\n");
             return 1;
         }
         size_t ctSize8;
         unsigned char *ct8 = OFB8_encrypt(des, pt8, ptSize8, iv[0], &ctSize8);
         if (ct8 && writeHexByteFile(cipherFilePath, ct8, ctSize8))
         {
-            printf("加密完成，密文已写入: %s\n", cipherFilePath);
+            printf("Encryption complete, ciphertext written to: %s\n", cipherFilePath);
             ret = 0;
         }
         else
         {
-            fprintf(stderr, "错误: OFB8 加密失败\n");
+            fprintf(stderr, "Error: OFB8 encryption failed\n");
         }
         free(pt8);
         free(ct8);
@@ -301,19 +305,19 @@ int main(int argc, char *argv[])
         // 写入密文文件（以十六进制文本格式）
         if (writeHexFile(cipherFilePath, ciphertext, ciphertextSize))
         {
-            printf("加密完成，密文已写入: %s\n", cipherFilePath);
+            printf("Encryption complete, ciphertext written to: %s\n", cipherFilePath);
             ret = 0; // 成功
         }
         else
         {
-            fprintf(stderr, "错误: 写入密文文件失败\n");
+            fprintf(stderr, "Error: Failed to write ciphertext file\n");
         }
 
         free(ciphertext);
     }
     else
     {
-        fprintf(stderr, "错误: 加密失败\n");
+        fprintf(stderr, "Error: Encryption failed\n");
     }
 
     // 清理

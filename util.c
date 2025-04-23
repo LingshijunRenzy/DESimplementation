@@ -22,7 +22,7 @@ EncryptionMode parseMode(const char *modeStr)
     if (strcmp(modeStr, "OFB") == 0 || strcmp(modeStr, "ofb") == 0)
         return OFB;
 
-    fprintf(stderr, "不支持的加密模式: %s\n", modeStr);
+    fprintf(stderr, "Unsupported encryption mode: %s\n", modeStr);
     exit(1);
 }
 
@@ -32,7 +32,7 @@ BYTE *readFile(const char *filePath, size_t *fileSize)
     FILE *file = fopen(filePath, "rb");
     if (!file)
     {
-        fprintf(stderr, "无法打开文件: %s\n", filePath);
+        fprintf(stderr, "Error: Unable to open file: %s\n", filePath);
         return NULL;
     }
 
@@ -49,7 +49,7 @@ BYTE *readFile(const char *filePath, size_t *fileSize)
     if (!buffer)
     {
         fclose(file);
-        fprintf(stderr, "内存分配失败\n");
+        fprintf(stderr, "Error: Memory allocation failed\n");
         return NULL;
     }
 
@@ -59,7 +59,7 @@ BYTE *readFile(const char *filePath, size_t *fileSize)
     {
         free(buffer);
         fclose(file);
-        fprintf(stderr, "内存分配失败\n");
+        fprintf(stderr, "Error: Memory allocation failed\n");
         return NULL;
     }
 
@@ -71,7 +71,7 @@ BYTE *readFile(const char *filePath, size_t *fileSize)
     {
         free(buffer);
         free(tempBuffer);
-        fprintf(stderr, "读取文件失败: %s\n", filePath);
+        fprintf(stderr, "Error: Failed to read file: %s\n", filePath);
         return NULL;
     }
 
@@ -95,7 +95,7 @@ int writeFile(const char *filePath, const BYTE *data, size_t dataSize)
     FILE *file = fopen(filePath, "wb");
     if (!file)
     {
-        fprintf(stderr, "无法创建文件: %s\n", filePath);
+        fprintf(stderr, "Error: Unable to create file: %s\n", filePath);
         return 0;
     }
 
@@ -107,7 +107,7 @@ int writeFile(const char *filePath, const BYTE *data, size_t dataSize)
     if (!tempBuffer)
     {
         fclose(file);
-        fprintf(stderr, "内存分配失败\n");
+        fprintf(stderr, "Error: Memory allocation failed\n");
         return 0;
     }
 
@@ -127,7 +127,7 @@ int writeFile(const char *filePath, const BYTE *data, size_t dataSize)
 
     if (bytesWritten != totalBytes)
     {
-        fprintf(stderr, "写入文件失败: %s\n", filePath);
+        fprintf(stderr, "Error: Failed to write file: %s\n", filePath);
         return 0;
     }
 
@@ -151,7 +151,7 @@ BYTE *readHexFile(const char *filePath, size_t *byteSize)
     FILE *file = fopen(filePath, "r");
     if (!file)
     {
-        fprintf(stderr, "无法打开文件: %s\n", filePath);
+        fprintf(stderr, "Error: Unable to open file: %s\n", filePath);
         return NULL;
     }
 
@@ -165,7 +165,7 @@ BYTE *readHexFile(const char *filePath, size_t *byteSize)
     if (!buffer)
     {
         fclose(file);
-        fprintf(stderr, "内存分配失败\n");
+        fprintf(stderr, "Error: Memory allocation failed\n");
         return NULL;
     }
 
@@ -176,7 +176,7 @@ BYTE *readHexFile(const char *filePath, size_t *byteSize)
     if (bytesRead != fileSize)
     {
         free(buffer);
-        fprintf(stderr, "读取文件失败: %s\n", filePath);
+        fprintf(stderr, "Error: Failed to read file: %s\n", filePath);
         return NULL;
     }
 
@@ -187,7 +187,7 @@ BYTE *readHexFile(const char *filePath, size_t *byteSize)
     if (!hexString)
     {
         free(buffer);
-        fprintf(stderr, "内存分配失败\n");
+        fprintf(stderr, "Error: Memory allocation failed\n");
         return NULL;
     }
 
@@ -207,7 +207,7 @@ BYTE *readHexFile(const char *filePath, size_t *byteSize)
     if (hexLen % 2 != 0)
     {
         free(hexString);
-        fprintf(stderr, "无效的十六进制字符串长度: %s\n", filePath);
+        fprintf(stderr, "Error: Invalid hexadecimal string length: %s\n", filePath);
         return NULL;
     }
 
@@ -224,7 +224,7 @@ BYTE *readHexFile(const char *filePath, size_t *byteSize)
     if (!result)
     {
         free(hexString);
-        fprintf(stderr, "内存分配失败\n");
+        fprintf(stderr, "Error: Memory allocation failed\n");
         return NULL;
     }
 
@@ -240,7 +240,7 @@ BYTE *readHexFile(const char *filePath, size_t *byteSize)
         {
             free(hexString);
             free(result);
-            fprintf(stderr, "无效的十六进制字符: %s\n", filePath);
+            fprintf(stderr, "Error: Invalid hexadecimal character: %s\n", filePath);
             return NULL;
         }
 
@@ -302,7 +302,7 @@ int writeHexFile(const char *filePath, const BYTE *data, size_t dataSize)
     FILE *file = fopen(filePath, "w");
     if (!file)
     {
-        fprintf(stderr, "无法创建文件: %s\n", filePath);
+        fprintf(stderr, "Error: Unable to create file: %s\n", filePath);
         return 0;
     }
 
@@ -339,11 +339,12 @@ int writeHexByteFile(const char *filePath, const unsigned char *data, size_t dat
 
 void printUsage()
 {
-    printf("用法: e1des -p plainfile -k keyfile [-v vifile] -m mode -c cipherfile\n");
-    printf("参数:\n");
-    printf("  -p plainfile   指定明文文件的位置和名称\n");
-    printf("  -k keyfile     指定密钥文件的位置和名称\n");
-    printf("  -v vifile      指定初始化向量文件的位置和名称\n");
-    printf("  -m mode        指定加密的操作模式 (ECB, CBC, CFB, OFB)\n");
-    printf("  -c cipherfile  指定密文文件的位置和名称\n");
+    printf("Usage: e1des -p plainfile -k keyfile [-v ivfile] -m mode -c cipherfile [-d]\n");
+    printf("Options:\n");
+    printf("  -p plainfile   Specify the path to the plaintext file\n");
+    printf("  -k keyfile     Specify the path to the key file\n");
+    printf("  -v ivfile      Specify the path to the IV file\n");
+    printf("  -m mode        Specify the encryption mode (ECB, CBC, CFB, OFB)\n");
+    printf("  -c cipherfile  Specify the path to the ciphertext file\n");
+    printf("  -d             Decrypt mode (optional)\n");
 }
