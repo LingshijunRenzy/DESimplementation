@@ -52,23 +52,17 @@ BYTE *DES_decrypt(DES *des, BYTE *data, size_t dataSize, EncryptionMode mode, si
 // ECB模式加密
 BYTE *ECB_encrypt(DES *des, BYTE *data, size_t dataSize, size_t *ciphertextSize)
 {
-    // 根据输入数据大小计算输出大小（可能需要填充）
     *ciphertextSize = dataSize;
-
-    // 分配内存存储加密后的数据
-    BYTE *ciphertext = (BYTE *)malloc(*ciphertextSize * sizeof(BYTE));
+    BYTE *ciphertext = malloc(dataSize * sizeof(BYTE));
     if (!ciphertext)
     {
         fprintf(stderr, "内存分配失败\n");
         return NULL;
     }
-
-    // 逐块加密
     for (size_t i = 0; i < dataSize; i++)
     {
         ciphertext[i] = DES_encryptBlock(des, data[i]);
     }
-
     return ciphertext;
 }
 
@@ -264,4 +258,71 @@ BYTE *OFB_decrypt(DES *des, BYTE *data, size_t dataSize, BYTE *iv, size_t ivSize
 {
     // OFB模式下，解密与加密过程相同
     return OFB_encrypt(des, data, dataSize, iv, ivSize, plaintextSize);
+}
+
+// 8-bit CFB 加密
+unsigned char *CFB8_encrypt(DES *des, unsigned char *data, size_t dataSize, BYTE iv, size_t *ciphertextSize)
+{
+    *ciphertextSize = dataSize;
+    unsigned char *out = (unsigned char *)malloc(dataSize);
+    if (!out)
+        return NULL;
+    BYTE reg = iv;
+    for (size_t i = 0; i < dataSize; i++)
+    {
+        BYTE enc = DES_encryptBlock(des, reg);
+        unsigned char msb = (enc >> 56) & 0xFF;
+        unsigned char c = data[i] ^ msb;
+        out[i] = c;
+        // 移位寄存器左移8位, 低8位插入密文字节
+        reg = (reg << 8) | c;
+    }
+    return out;
+}
+
+// 8-bit OFB 加密
+unsigned char *OFB8_encrypt(DES *des, unsigned char *data, size_t dataSize, BYTE iv, size_t *ciphertextSize)
+{
+    *ciphertextSize = dataSize;
+    unsigned char *out = (unsigned char *)malloc(dataSize);
+    if (!out)
+        return NULL;
+    BYTE reg = iv;
+    for (size_t i = 0; i < dataSize; i++)
+    {
+        BYTE enc = DES_encryptBlock(des, reg);
+        unsigned char msb = (enc >> 56) & 0xFF;
+        unsigned char c = data[i] ^ msb;
+        out[i] = c;
+        // 寄存器左移8位, 插入当前输出（伪随机）字节
+        reg = (reg << 8) | msb;
+    }
+    return out;
+}
+
+// 8-bit CFB 解密
+unsigned char *CFB8_decrypt(DES *des, unsigned char *data, size_t dataSize, BYTE iv, size_t *plaintextSize)
+{
+    *plaintextSize = dataSize;
+    unsigned char *out = malloc(dataSize);
+    if (!out)
+        return NULL;
+    BYTE reg = iv;
+    for (size_t i = 0; i < dataSize; i++)
+    {
+        BYTE enc = DES_encryptBlock(des, reg);
+        unsigned char msb = (enc >> 56) & 0xFF;
+        unsigned char p = data[i] ^ msb;
+        out[i] = p;
+        // 更新寄存器：插入密文字节
+        reg = (reg << 8) | data[i];
+    }
+    return out;
+}
+
+// 8-bit OFB 解密 (与加密相同)
+unsigned char *OFB8_decrypt(DES *des, unsigned char *data, size_t dataSize, BYTE iv, size_t *plaintextSize)
+{
+    // OFB 解密与加密相同
+    return OFB8_encrypt(des, data, dataSize, iv, plaintextSize);
 }

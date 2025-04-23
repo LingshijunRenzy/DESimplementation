@@ -1,3 +1,6 @@
+#ifndef ENUM_H
+#define ENUM_H
+
 // 加密模式枚举
 typedef enum
 {
@@ -6,3 +9,5 @@ typedef enum
     CFB, // Cipher Feedback
     OFB  // Output Feedback
 } EncryptionMode;
+
+#endif // ENUM_H

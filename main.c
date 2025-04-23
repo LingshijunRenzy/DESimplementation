@@ -2,148 +2,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
+#include <stdbool.h>
 #include "DES.h"
 #include "enum.h"
+#include "util.h"     // 引入util.h头文件
+#include "workMode.h" // 引入workMode.h头文件
 
 // DES相关常量定义
 #define BLOCK_SIZE 1 // 现在1个BYTE代表一个64位块
 #define KEY_SIZE 1   // 密钥大小为1个BYTE (64位)
 #define IV_SIZE 1    // 初始化向量大小为1个BYTE (64位)
-
-// 将字符串转换为加密模式枚举
-EncryptionMode parseMode(const char *modeStr)
-{
-    if (strcmp(modeStr, "ECB") == 0 || strcmp(modeStr, "ecb") == 0)
-        return ECB;
-    if (strcmp(modeStr, "CBC") == 0 || strcmp(modeStr, "cbc") == 0)
-        return CBC;
-    if (strcmp(modeStr, "CFB") == 0 || strcmp(modeStr, "cfb") == 0)
-        return CFB;
-    if (strcmp(modeStr, "OFB") == 0 || strcmp(modeStr, "ofb") == 0)
-        return OFB;
-
-    fprintf(stderr, "不支持的加密模式: %s\n", modeStr);
-    exit(1);
-}
-
-// 读取文件内容到字节数组 - 修改为支持64位BYTE类型
-BYTE *readFile(const char *filePath, size_t *fileSize)
-{
-    FILE *file = fopen(filePath, "rb");
-    if (!file)
-    {
-        fprintf(stderr, "无法打开文件: %s\n", filePath);
-        return NULL;
-    }
-
-    // 获取文件大小(以字节为单位)
-    fseek(file, 0, SEEK_END);
-    size_t fileSizeBytes = ftell(file);
-    fseek(file, 0, SEEK_SET);
-
-    // 计算需要的BYTE数量 (向上取整，每8个字节一个BYTE)
-    *fileSize = (fileSizeBytes + 7) / 8;
-
-    // 分配内存空间
-    BYTE *buffer = (BYTE *)malloc(*fileSize * sizeof(BYTE));
-    if (!buffer)
-    {
-        fclose(file);
-        fprintf(stderr, "内存分配失败\n");
-        return NULL;
-    }
-
-    // 临时缓冲区存储实际字节
-    unsigned char *tempBuffer = (unsigned char *)malloc(fileSizeBytes);
-    if (!tempBuffer)
-    {
-        free(buffer);
-        fclose(file);
-        fprintf(stderr, "内存分配失败\n");
-        return NULL;
-    }
-
-    // 读取文件内容到临时缓冲区
-    size_t bytesRead = fread(tempBuffer, 1, fileSizeBytes, file);
-    fclose(file);
-
-    if (bytesRead != fileSizeBytes)
-    {
-        free(buffer);
-        free(tempBuffer);
-        fprintf(stderr, "读取文件失败: %s\n", filePath);
-        return NULL;
-    }
-
-    // 将字节数据转换为64位BYTE值
-    for (size_t i = 0; i < *fileSize; i++)
-    {
-        buffer[i] = 0;
-        for (size_t j = 0; j < 8 && (i * 8 + j) < fileSizeBytes; j++)
-        {
-            buffer[i] |= ((BYTE)tempBuffer[i * 8 + j]) << (j * 8);
-        }
-    }
-
-    free(tempBuffer);
-    return buffer;
-}
-
-// 将字节数组写入文件 - 修改为支持64位BYTE类型
-int writeFile(const char *filePath, const BYTE *data, size_t dataSize)
-{
-    FILE *file = fopen(filePath, "wb");
-    if (!file)
-    {
-        fprintf(stderr, "无法创建文件: %s\n", filePath);
-        return 0;
-    }
-
-    // 计算实际字节数 (每个BYTE包含8个字节)
-    size_t totalBytes = dataSize * 8;
-
-    // 临时缓冲区存储实际字节
-    unsigned char *tempBuffer = (unsigned char *)malloc(totalBytes);
-    if (!tempBuffer)
-    {
-        fclose(file);
-        fprintf(stderr, "内存分配失败\n");
-        return 0;
-    }
-
-    // 将64位BYTE值转换为字节数据
-    for (size_t i = 0; i < dataSize; i++)
-    {
-        for (size_t j = 0; j < 8; j++)
-        {
-            tempBuffer[i * 8 + j] = (unsigned char)((data[i] >> (j * 8)) & 0xFF);
-        }
-    }
-
-    // 写入文件
-    size_t bytesWritten = fwrite(tempBuffer, 1, totalBytes, file);
-    fclose(file);
-    free(tempBuffer);
-
-    if (bytesWritten != totalBytes)
-    {
-        fprintf(stderr, "写入文件失败: %s\n", filePath);
-        return 0;
-    }
-
-    return 1;
-}
-
-void printUsage()
-{
-    printf("用法: e1des -p plainfile -k keyfile [-v vifile] -m mode -c cipherfile\n");
-    printf("参数:\n");
-    printf("  -p plainfile   指定明文文件的位置和名称\n");
-    printf("  -k keyfile     指定密钥文件的位置和名称\n");
-    printf("  -v vifile      指定初始化向量文件的位置和名称\n");
-    printf("  -m mode        指定加密的操作模式 (ECB, CBC, CFB, OFB)\n");
-    printf("  -c cipherfile  指定密文文件的位置和名称\n");
-}
 
 int main(int argc, char *argv[])
 {
@@ -153,9 +21,10 @@ int main(int argc, char *argv[])
     char *ivFilePath = NULL;
     char *modeName = NULL;
     char *cipherFilePath = NULL;
+    bool decrypt = false;
 
     int opt;
-    while ((opt = getopt(argc, argv, "p:k:v:m:c:h")) != -1)
+    while ((opt = getopt(argc, argv, "p:k:v:m:c:hd")) != -1)
     {
         switch (opt)
         {
@@ -173,6 +42,9 @@ int main(int argc, char *argv[])
             break;
         case 'c':
             cipherFilePath = optarg;
+            break;
+        case 'd':
+            decrypt = true;
             break;
         case 'h':
             printUsage();
@@ -202,24 +74,31 @@ int main(int argc, char *argv[])
     }
 
     // 读取文件
-    size_t plaintextSize, keySize, ivSize;
-    BYTE *plaintext = readFile(plainFilePath, &plaintextSize);
-    BYTE *key = readFile(keyFilePath, &keySize);
-    BYTE *iv = NULL;
+    size_t plaintextSize = 0, keySize = 0, ivSize = 0;
+    BYTE *plaintext = NULL, *key = NULL, *iv = NULL;
+    int ret = 0;
 
-    if (!plaintext || !key)
+    // 先读取明文
+    plaintext = readHexFile(plainFilePath, &plaintextSize);
+    if (!plaintext)
     {
-        if (plaintext)
-            free(plaintext);
-        if (key)
-            free(key);
+        fprintf(stderr, "错误: 无法读取明文文件\n");
+        return 1;
+    }
+
+    // 读取密钥
+    key = readHexFile(keyFilePath, &keySize);
+    if (!key)
+    {
+        fprintf(stderr, "错误: 无法读取密钥文件\n");
+        free(plaintext);
         return 1;
     }
 
     // 验证密钥大小
     if (keySize != KEY_SIZE)
     {
-        fprintf(stderr, "错误: 密钥必须为8字节(64位)\n");
+        fprintf(stderr, "错误: 密钥必须为16个十六进制字符(64位)\n");
         free(plaintext);
         free(key);
         return 1;
@@ -228,9 +107,10 @@ int main(int argc, char *argv[])
     // 如果需要，读取初始化向量
     if (ivFilePath != NULL)
     {
-        iv = readFile(ivFilePath, &ivSize);
+        iv = readHexFile(ivFilePath, &ivSize);
         if (!iv)
         {
+            fprintf(stderr, "错误: 无法读取初始化向量文件\n");
             free(plaintext);
             free(key);
             return 1;
@@ -238,7 +118,7 @@ int main(int argc, char *argv[])
 
         if (ivSize != IV_SIZE)
         {
-            fprintf(stderr, "错误: 初始化向量必须为8字节(64位)\n");
+            fprintf(stderr, "错误: 初始化向量必须为16个十六进制字符(64位)\n");
             free(plaintext);
             free(key);
             free(iv);
@@ -265,23 +145,175 @@ int main(int argc, char *argv[])
         DES_setIV(des, iv, ivSize);
     }
 
+    // 解密流程
+    if (decrypt)
+    {
+        // CFB8 解密
+        if (mode == CFB)
+        {
+            // 读取密文字节数组
+            size_t ctSize8;
+            unsigned char *ct8 = readHexFile8(plainFilePath, &ctSize8);
+            if (!ct8)
+            {
+                fprintf(stderr, "错误: 无法读取密文文件\n");
+                return 1;
+            }
+            size_t ptSize8;
+            unsigned char *pt8 = CFB8_decrypt(des, ct8, ctSize8, iv[0], &ptSize8);
+            if (pt8 && writeHexByteFile(cipherFilePath, pt8, ptSize8))
+            {
+                printf("解密完成，明文已写入: %s\n", cipherFilePath);
+                ret = 0;
+            }
+            else
+            {
+                fprintf(stderr, "错误: CFB8 解密失败\n");
+            }
+            free(ct8);
+            free(pt8);
+            DES_destroy(des);
+            free(plaintext);
+            free(key);
+            if (iv)
+                free(iv);
+            return ret;
+        }
+        // OFB8 解密
+        if (mode == OFB)
+        {
+            size_t ctSize8;
+            unsigned char *ct8 = readHexFile8(plainFilePath, &ctSize8);
+            if (!ct8)
+            {
+                fprintf(stderr, "错误: 无法读取密文文件\n");
+                return 1;
+            }
+            size_t ptSize8;
+            unsigned char *pt8 = OFB8_decrypt(des, ct8, ctSize8, iv[0], &ptSize8);
+            if (pt8 && writeHexByteFile(cipherFilePath, pt8, ptSize8))
+            {
+                printf("解密完成，明文已写入: %s\n", cipherFilePath);
+                ret = 0;
+            }
+            else
+            {
+                fprintf(stderr, "错误: OFB8 解密失败\n");
+            }
+            free(ct8);
+            free(pt8);
+            DES_destroy(des);
+            free(plaintext);
+            free(key);
+            if (iv)
+                free(iv);
+            return ret;
+        }
+        // 其余模式块解密
+        size_t plainOutSize = 0;
+        BYTE *plainOut = DES_decrypt(des, plaintext, plaintextSize, mode, &plainOutSize);
+        if (plainOut && writeHexFile(cipherFilePath, plainOut, plainOutSize))
+        {
+            printf("解密完成，明文已写入: %s\n", cipherFilePath);
+            ret = 0;
+        }
+        else
+        {
+            fprintf(stderr, "错误: 解密失败\n");
+        }
+        free(plainOut);
+        DES_destroy(des);
+        free(plaintext);
+        free(key);
+        if (iv)
+            free(iv);
+        return ret;
+    }
+
+    // CFB8 模式
+    if (mode == CFB)
+    {
+        size_t ptSize8;
+        unsigned char *pt8 = readHexFile8(plainFilePath, &ptSize8);
+        if (!pt8)
+        {
+            fprintf(stderr, "错误: 读取明文失败\n");
+            return 1;
+        }
+        size_t ctSize8;
+        unsigned char *ct8 = CFB8_encrypt(des, pt8, ptSize8, iv[0], &ctSize8);
+        if (ct8 && writeHexByteFile(cipherFilePath, ct8, ctSize8))
+        {
+            printf("加密完成，密文已写入: %s\n", cipherFilePath);
+            ret = 0;
+        }
+        else
+        {
+            fprintf(stderr, "错误: CFB8 加密失败\n");
+        }
+        free(pt8);
+        free(ct8);
+        DES_destroy(des);
+        free(plaintext);
+        free(key);
+        free(iv);
+        return ret;
+    }
+    // OFB8 模式
+    if (mode == OFB)
+    {
+        size_t ptSize8;
+        unsigned char *pt8 = readHexFile8(plainFilePath, &ptSize8);
+        if (!pt8)
+        {
+            fprintf(stderr, "错误: 读取明文失败\n");
+            return 1;
+        }
+        size_t ctSize8;
+        unsigned char *ct8 = OFB8_encrypt(des, pt8, ptSize8, iv[0], &ctSize8);
+        if (ct8 && writeHexByteFile(cipherFilePath, ct8, ctSize8))
+        {
+            printf("加密完成，密文已写入: %s\n", cipherFilePath);
+            ret = 0;
+        }
+        else
+        {
+            fprintf(stderr, "错误: OFB8 加密失败\n");
+        }
+        free(pt8);
+        free(ct8);
+        DES_destroy(des);
+        free(plaintext);
+        free(key);
+        free(iv);
+        return ret;
+    }
+
     // 执行加密
     size_t ciphertextSize;
     BYTE *ciphertext = DES_encrypt(des, plaintext, plaintextSize, mode, &ciphertextSize);
 
+    // 初始化返回值
+    ret = 1;
+
     if (ciphertext)
     {
-        // 写入密文文件
-        if (writeFile(cipherFilePath, ciphertext, ciphertextSize))
+        // 写入密文文件（以十六进制文本格式）
+        if (writeHexFile(cipherFilePath, ciphertext, ciphertextSize))
         {
             printf("加密完成，密文已写入: %s\n", cipherFilePath);
+            ret = 0; // 成功
+        }
+        else
+        {
+            fprintf(stderr, "错误: 写入密文文件失败\n");
         }
 
         free(ciphertext);
     }
     else
     {
-        fprintf(stderr, "加密失败\n");
+        fprintf(stderr, "错误: 加密失败\n");
     }
 
     // 清理
@@ -291,5 +323,5 @@ int main(int argc, char *argv[])
     if (iv)
         free(iv);
 
-    return 0;
+    return ret;
 }
