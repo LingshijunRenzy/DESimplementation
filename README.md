@@ -65,7 +65,12 @@ e1des -p <文件> -k <文件> [-v <文件>] -m <模式> [-d] -c <输出>
 3. 性能测试 (Python 脚本)：
    ```bash
    cd txts/speedtest
+   chmod +x data_generator.py
    chmod +x speed_test.py
+   ./data_generator.py
+   ```
+   生成 5 MB 随机数据文件 `randomdata.txt`，用于性能测试。  
+   ```bash
    ./speed_test.py
    ```
    执行后会生成 `test_report_YYYY-MM-DD-HH-MM-SS.log`，记录 20 次加/解密的总耗时和吞吐率。
