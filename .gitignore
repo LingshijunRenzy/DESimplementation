@@ -6,3 +6,4 @@ e1des.*
 # 排除speedtest测试文件
 txts/speedtest/*.txt
 txts/speedtest/*.bin
+*.log
