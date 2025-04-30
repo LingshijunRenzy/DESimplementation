@@ -2,6 +2,7 @@
 *.o
 *.so
 e1des.*
+e1des
 
 # 排除speedtest测试文件
 txts/speedtest/*.txt
